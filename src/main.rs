@@ -1,4 +1,8 @@
-use std::{collections::VecDeque, io::{stdin, stdout, Read}, process::Output};
+use std::{
+    collections::VecDeque,
+    io::{stdin, stdout, Read},
+    process::Output,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ForgeStep {
@@ -44,6 +48,16 @@ static OPS: [ForgeStep; 8] = [
     ForgeStep::HitLight,
     ForgeStep::HitMedium,
     ForgeStep::HitHard,
+    ForgeStep::Draw,
+    ForgeStep::Punch,
+    ForgeStep::Bend,
+    ForgeStep::Upset,
+    ForgeStep::Shrink,
+];
+
+static ENDS: [ForgeStep; 6] = [
+    //击打只有轻击
+    ForgeStep::HitLight,
     ForgeStep::Draw,
     ForgeStep::Punch,
     ForgeStep::Bend,
@@ -105,11 +119,18 @@ pub fn calculate_optimal_steps_to_target(mut target: i32, rules: Vec<ForgeRule>)
     let pat = init_optimal_steps_to_target();
     let mut last_steps: Vec<ForgeStep> = Vec::new();
 
-    'outer: for last3 in OPS {
-        for last2 in OPS {
-            for last1 in OPS {
+    'outer: for last3 in ENDS {
+        for last2 in ENDS {
+            'inner: for last1 in ENDS {
                 let mut legal = 0;
                 let output = [last3, last2, last1];
+                for t in ENDS {
+                    if output.iter().filter(|x| **x == t).count()
+                        < rules.iter().filter(|x| x.typ == t).count()
+                    {
+                        continue 'inner;
+                    }
+                }
                 for rule in &rules {
                     //遍历所有后三步
                     let rule = *rule;
@@ -126,20 +147,22 @@ pub fn calculate_optimal_steps_to_target(mut target: i32, rules: Vec<ForgeRule>)
                         0
                     }
                 }
-                if legal == 3 {
-                    output.iter().for_each(|x|{last_steps.push(*x)});
+                if legal == rules.len() {
+                    output.iter().for_each(|x| last_steps.push(*x));
                     break 'outer;
                 }
             }
         }
     }
-
+    if last_steps.is_empty() {
+        panic!("无合法操作！");
+    }
     let mut required_hits = 0;
     for step in &last_steps {
-            target -= step.get_effect();
-            if *step == ForgeStep::HitLight {
-                required_hits += 1;
-            }
+        target -= step.get_effect();
+        if *step == ForgeStep::HitLight {
+            required_hits += 1;
+        }
     }
     let mut best_power = 0;
     let mut minimum_steps = get_optimal_steps_to_target(&pat, target);
